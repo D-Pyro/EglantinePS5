@@ -886,7 +886,14 @@ download_prefix = download_source[download_begin:download_loop]
 # pressure policy changes. Fail on source drift rather than inventing a budget.
 delete_begin = download_source.index('    if (image.HasScaled()) {', download_source.index('void TextureCache<P>::DeleteImage('))
 delete_end = download_source.index('    const GPUVAddr gpu_addr', delete_begin)
-reclaimed_bytes = download_source[delete_begin:delete_end].replace('total_used_memory -=', 'bytes +=')
+# The MKW VRAM fix made DeleteImage's accounting read
+# ImageMemoryBytes(slot_images[image_id]); image_id is DeleteImage's parameter, out of scope in
+# the ReclaimedBytes lambda. Its caller passes exactly that image, so bind to the parameter.
+reclaimed_bytes = (
+    download_source[delete_begin:delete_end]
+    .replace('slot_images[image_id]', 'static_cast<const Image&>(image)')
+    .replace('total_used_memory -=', 'bytes +='))
+
 gc_begin = download_source.index('void TextureCache<P>::RunGarbageCollector() {')
 gc_end = download_source.index('\ntemplate <class P>', gc_begin)
 gc_original = download_source[gc_begin:gc_end]
